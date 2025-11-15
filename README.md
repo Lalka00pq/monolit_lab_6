@@ -60,3 +60,28 @@ OPENROUTER_API_KEY: str = 'your_api_key_here'
 - Убедитесь, что у вас достаточно средств на балансе OpenRouter для обработки запросов
 - Если API ключ не установлен, обработка будет пропущена, но PDF файлы все равно будут загружены
 
+## Как запустить приложение
+1) Клонируйте репозитория
+```bash
+git clone https://github.com/Lalka00pq/monolit_lab_6
+```
+2) Перейдите в папку
+```bash
+cd monolit_lab_6
+```
+1) Создайте виртуальное окружение
+```bash
+python -m venv .venv
+```
+1) Активируйте виртуальное окружение
+```bash
+.\.venv\Scripts\activete
+```
+1) Установите зависимости 
+```bash
+pip install -r requirements.txt
+```
+1) Запустите приложение
+```bash
+python main.py
+```
