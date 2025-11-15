@@ -242,9 +242,49 @@ body {
     transform: rotate(180deg);
 }
 
+.clear-btn {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    margin-left: 8px;
+}
+
+.clear-btn:hover {
+    background: var(--error);
+    border-color: var(--error);
+    color: white;
+}
+
 .files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.folder-group {
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.folder-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.folder-files {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
 }
 
@@ -291,6 +331,13 @@ body {
 .file-folder {
     font-size: 0.85rem;
     color: var(--text-secondary);
+}
+
+.file-type {
+    font-size: 0.8rem;
+    color: var(--primary-color);
+    font-weight: 500;
+    margin-top: 4px;
 }
 
 .file-meta {

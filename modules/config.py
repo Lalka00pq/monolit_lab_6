@@ -1,8 +1,14 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Dict
 
 
 class ParserConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
+    
     SITE_URL: str = 'https://cyberleninka.ru'
     PARSE_URL: str = 'https://cyberleninka.ru/api/search'
     HEADERS: Dict[str, str] = {
@@ -12,6 +18,9 @@ class ParserConfig(BaseSettings):
         'Accept': '*/*',
     }
     LOAD_DIR: str = './files'
+    OPENROUTER_API_KEY: str = ''
+    OPENROUTER_MODEL: str = 'openai/gpt-4o-mini'
+    OPENROUTER_BASE_URL: str = 'https://openrouter.ai/api/v1'
 
 
 parser_config = ParserConfig()

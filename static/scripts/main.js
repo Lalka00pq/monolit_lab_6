@@ -127,21 +127,46 @@ async function loadFiles() {
 
 // Функция отображения файлов
 function displayFiles(files) {
-    filesList.innerHTML = files.map(file => `
-        <div class="file-card">
-            <div class="file-card-header">
-                <div class="file-icon">📄</div>
-                <div class="file-info">
-                    <div class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
-                    <div class="file-folder">Папка: ${file.folder}</div>
+    // Группируем файлы по папкам для лучшего отображения
+    const filesByFolder = {};
+    files.forEach(file => {
+        if (!filesByFolder[file.folder]) {
+            filesByFolder[file.folder] = [];
+        }
+        filesByFolder[file.folder].push(file);
+    });
+    
+    filesList.innerHTML = Object.keys(filesByFolder).sort((a, b) => parseInt(a) - parseInt(b)).map(folder => {
+        const folderFiles = filesByFolder[folder];
+        return `
+            <div class="folder-group">
+                <h3 class="folder-title">Папка ${folder}</h3>
+                <div class="folder-files">
+                    ${folderFiles.map(file => {
+                        const icon = file.type === '.pdf' ? '📄' : '📝';
+                        const typeLabel = file.type === '.pdf' ? 'PDF' : 
+                                        file.name.includes('анализ') ? 'Анализ' :
+                                        file.name.includes('аннотация') ? 'Аннотация' :
+                                        file.name.includes('пересказ') ? 'Пересказ' : 'TXT';
+                        return `
+                            <div class="file-card">
+                                <div class="file-card-header">
+                                    <div class="file-icon">${icon}</div>
+                                    <div class="file-info">
+                                        <div class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
+                                        <div class="file-type">${typeLabel}</div>
+                                    </div>
+                                </div>
+                                <div class="file-meta">
+                                    <span class="file-size">${file.size_mb < 0.01 ? (file.size / 1024).toFixed(2) + ' KB' : file.size_mb + ' MB'}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
-            <div class="file-meta">
-                <span class="file-size">${file.size_mb} MB</span>
-                <span class="file-path">${file.path}</span>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Функция показа сообщения
