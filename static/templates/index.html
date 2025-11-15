@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberLeninka Parser</title>
+    <link rel="stylesheet" href="/static/styles/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">🔍 CyberLeninka Parser</h1>
+            <p class="subtitle">Поиск и загрузка научных статей</p>
+        </header>
+
+        <main class="main-content">
+            <div class="search-section">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        class="search-input" 
+                        placeholder="Введите запрос для поиска статей..."
+                        autocomplete="off"
+                    >
+                    <button id="searchBtn" class="search-btn">
+                        <span class="btn-text">Поиск</span>
+                        <span class="btn-loader" style="display: none;">
+                            <span class="spinner"></span>
+                        </span>
+                    </button>
+                </div>
+                <div class="search-options">
+                    <label class="option-label">
+                        <span>Начальная позиция:</span>
+                        <input type="number" id="startFrom" class="option-input" value="0" min="0">
+                    </label>
+                    <label class="option-label">
+                        <span>Количество статей:</span>
+                        <input type="number" id="itemsPerPage" class="option-input" value="12" min="1" max="50">
+                    </label>
+                </div>
+            </div>
+
+            <div id="statusMessage" class="status-message" style="display: none;"></div>
+
+            <div class="files-section">
+                <div class="section-header">
+                    <h2>📁 Загруженные файлы</h2>
+                    <button id="refreshBtn" class="refresh-btn" title="Обновить список">
+                        <span>🔄</span>
+                    </button>
+                    <button id="clearBtn" class="clear-btn" title="Очистить содержимое папок">
+                        <span>🗑️ Очистить</span>
+                    </button>
+                </div>
+                <div id="filesList" class="files-list">
+                    <div class="loading-placeholder">Загрузка списка файлов...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/scripts/main.js"></script>
+</body>
+</html>
+

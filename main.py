@@ -1,11 +1,13 @@
-# main.py
-
-from fastapi import FastAPI, HTTPException
-from typing import Optional
-from pydantic import BaseModel
-from typing import List, Dict, Any
-# Импортируем нашу логику парсинга
+# project
 from modules.parser import download_data, search_cyberleninka
+from schemas.schemas import SearchRequest
+# 3rd party
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+import shutil
 
 app = FastAPI(
     title="CyberLeninka Parser API",
@@ -13,57 +15,88 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
-class SearchRequest(BaseModel):
-    query: str
-    limit: int = 12  # По умолчанию 12 статей
-
-
-class ArticleResult(BaseModel):
-    title: str
-    pdf_link: str
-    download_status: str
-    download_path: Optional[str] = None
+# Подключение статических файлов и шаблонов
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="static/templates")
 
 
-class SearchResponse(BaseModel):
-    message: str
-    results: List[ArticleResult]
+@app.get("/", response_class=HTMLResponse, summary="Главная страница с UI")
+async def read_root(request: Request):
+    """Главная страница с интерфейсом для поиска статей."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+    return {"message": "Все файлы удалены"}
 
 
-@app.get("/", summary="Проверка работоспособности")
-def read_root():
+@app.get("/api/v1/files", summary="Получить список загруженных файлов")
+async def get_files():
+    """Возвращает информацию о всех загруженных файлах."""
+    files_dir = Path("./files")
+    files_info = []
+
+    if files_dir.exists():
+        for folder in sorted(files_dir.iterdir(), key=lambda x: int(x.name) if x.name.isdigit() else 0):
+            if folder.is_dir():
+                for file in folder.iterdir():
+                    if file.is_file() and file.suffix == '.pdf':
+                        files_info.append({
+                            "folder": folder.name,
+                            "name": file.name,
+                            "path": str(file.relative_to(files_dir)),
+                            "size": file.stat().st_size,
+                            "size_mb": round(file.stat().st_size / (1024 * 1024), 2)
+                        })
+
+    return {"files": files_info, "total": len(files_info)}
+
+
+@app.delete("/api/v1/files/clear", summary="Очистить содержимое подпапок в ./files (не удалять сами папки)")
+async def clear_files():
+    """Удаляет все файлы и вложенные директории внутри каждой подпапки в `./files`, но не удаляет сами подпапки."""
+    files_dir = Path("./files")
+    removed_items = 0
+
+    if not files_dir.exists():
+        return {"cleared": 0, "message": "Папка ./files не найдена"}
+
+    for folder in files_dir.iterdir():
+        if folder.is_dir():
+            # Удаляем все содержимое внутри папки, но не саму папку
+            for item in folder.iterdir():
+                try:
+                    if item.is_file() or item.is_symlink():
+                        item.unlink()
+                        removed_items += 1
+                    elif item.is_dir():
+                        # Удаляем рекурсивно вложенную директорию
+                        shutil.rmtree(item)
+                        removed_items += 1
+                except Exception:
+                    # Игнорируем отдельные ошибки удаления, продолжаем
+                    continue
+
+    return {"cleared": removed_items, "message": "Содержимое подпапок очищено (папки сохранены)."}
+
+
+@app.get("/api/v1/health", summary="Проверка работоспособности")
+def health_check():
     """Простой эндпоинт для проверки статуса сервера."""
     return {"status": "ok", "message": "Парсер API готов к работе. Используйте /parse/articles."}
 
 
-@app.post(
-    "/parse/articles",
-    response_model=SearchResponse,
-    summary="Запустить парсинг и скачивание статей"
-)
-async def parse_and_download_articles(request: SearchRequest):
-    """
-    Парсит первые LIMIT статей по заданному запросу с CyberLeninka, 
-    скачивает их PDF-версии в папку 'files/' и возвращает список результатов.
-    """
+@app.post("/parse/articles",
+          response_model=None)
+async def parse_articles(info: SearchRequest):
+    data = search_cyberleninka(
+        info.search_query, info.start_from, info.items_per_page)
+    result = download_data(data)
+    return result
 
-    if request.limit > 20:
-        raise HTTPException(
-            status_code=400, detail="Лимит статей не может превышать 20 за один запрос.")
 
-    # Вызываем синхронную функцию парсинга
-    download_results = fetch_articles_and_download(
-        request.query, request.limit)
+@app.post("/parse/articles2")
+async def parse_articles2(info: SearchRequest):
+    pass
 
-    if isinstance(download_results, dict) and download_results.get("error"):
-        raise HTTPException(status_code=500, detail=download_results["error"])
-
-    # Форматируем ответ в соответствии со схемой Pydantic
-    return SearchResponse(
-        message=f"Парсинг и скачивание по запросу '{request.query}' завершены.",
-        results=download_results
-    )
 
 if __name__ == "__main__":
     import uvicorn

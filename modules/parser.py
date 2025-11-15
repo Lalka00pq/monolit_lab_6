@@ -1,5 +1,5 @@
 import requests
-from config import parser_config
+from modules.config import parser_config
 import os
 
 
@@ -49,10 +49,4 @@ def download_data(data: dict):
             f'{parser_config.SITE_URL}{link}/pdf', headers=parser_config.HEADERS)
         with open(file, 'wb') as f:
             f.write(pdf_response.content)
-    return 'ok'
-
-
-data = search_cyberleninka('python')
-print(data)
-result = download_data(data)
-print(result)
+    return 'парсинг выполнен'
