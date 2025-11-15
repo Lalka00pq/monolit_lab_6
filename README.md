@@ -69,19 +69,19 @@ git clone https://github.com/Lalka00pq/monolit_lab_6
 ```bash
 cd monolit_lab_6
 ```
-1) Создайте виртуальное окружение
+3) Создайте виртуальное окружение
 ```bash
 python -m venv .venv
 ```
-1) Активируйте виртуальное окружение
+4) Активируйте виртуальное окружение
 ```bash
 .\.venv\Scripts\activete
 ```
-1) Установите зависимости 
+5) Установите зависимости 
 ```bash
 pip install -r requirements.txt
 ```
-1) Запустите приложение
+6) Запустите приложение
 ```bash
 python main.py
 ```
