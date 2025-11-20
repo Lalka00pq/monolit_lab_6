@@ -2,7 +2,7 @@
 from modules.parser import download_data, search_cyberleninka
 from schemas.schemas import SearchRequest
 # 3rd party
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -85,18 +85,12 @@ def health_check():
     return {"status": "ok", "message": "Парсер API готов к работе. Используйте /parse/articles."}
 
 
-@app.post("/parse/articles",
-          response_model=None)
+@app.post("/parse/articles")
 async def parse_articles(info: SearchRequest):
     data = search_cyberleninka(
         info.search_query, info.start_from, info.items_per_page)
     result = download_data(data)
     return result
-
-
-@app.post("/parse/articles2")
-async def parse_articles2(info: SearchRequest):
-    pass
 
 
 if __name__ == "__main__":

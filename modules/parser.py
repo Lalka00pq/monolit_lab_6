@@ -3,6 +3,7 @@ from modules.config import parser_config
 import os
 from modules.pdf_processor import extract_text_from_pdf
 from modules.openrouter_client import analyze_article, create_annotation, create_summary
+from fastapi import HTTPException
 
 
 def search_cyberleninka(search_query: str,
@@ -21,6 +22,8 @@ def search_cyberleninka(search_query: str,
     try:
         response = requests.post(
             parser_config.PARSE_URL, headers=parser_config.HEADERS, json=payload)
+        if response.content is None:
+            return None
         response.raise_for_status()
         return response.json()
 
@@ -91,7 +94,9 @@ def process_pdf_with_ai(pdf_path: str, title: str, folder_path: str):
 
 def download_data(data: dict):
     if data is None:
-        return None
+        raise Exception("Data is None")
+    if not data.get('articles'):
+        raise HTTPException(status_code=404, detail="Articles not found")
     for i, article in enumerate(data.get('articles', [])):
         title = article.get('name', 'N/A')
         annotation = article.get('annotation', 'N/A')
