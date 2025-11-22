@@ -1,67 +1,97 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberLeninka Parser</title>
-    <link rel="stylesheet" href="/static/styles/styles.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CyberLeninka Dashboard</title>
+    <link rel="stylesheet" href="/static/styles/styles.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1 class="title">🔍 CyberLeninka Parser</h1>
-            <p class="subtitle">Поиск и загрузка научных статей</p>
-        </header>
 
-        <main class="main-content">
-            <div class="search-section">
-                <div class="search-box">
-                    <input 
-                        type="text" 
-                        id="searchInput" 
-                        class="search-input" 
-                        placeholder="Введите запрос для поиска статей..."
-                        autocomplete="off"
-                    >
-                    <button id="searchBtn" class="search-btn">
-                        <span class="btn-text">Поиск</span>
-                        <span class="btn-loader" style="display: none;">
-                            <span class="spinner"></span>
-                        </span>
-                    </button>
-                </div>
-                <div class="search-options">
-                    <label class="option-label">
-                        <span>Начальная позиция:</span>
-                        <input type="number" id="startFrom" class="option-input" value="0" min="0">
-                    </label>
-                    <label class="option-label">
-                        <span>Количество статей:</span>
-                        <input type="number" id="itemsPerPage" class="option-input" value="12" min="1" max="50">
-                    </label>
+    <div class="layout-wrapper">
+        <aside class="control-panel">
+            <div class="brand-header">
+                <div class="brand-icon">🤖</div>
+                <div>
+                    <h1 class="app-title">Парсер доков</h1>
+                    <span class="app-badge">Киберленинка\</span>
                 </div>
             </div>
 
-            <div id="statusMessage" class="status-message" style="display: none;"></div>
-
-            <div class="files-section">
-                <div class="section-header">
-                    <h2>📁 Загруженные файлы</h2>
-                    <button id="refreshBtn" class="refresh-btn" title="Обновить список">
-                        <span>🔄</span>
-                    </button>
-                    <button id="clearBtn" class="clear-btn" title="Очистить содержимое папок">
-                        <span>🗑️ Очистить</span>
+            <div class="search-box">
+                <label class="section-label">Поиск новых статей</label>
+                <div class="input-group-main">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Ключевые слова..." autocomplete="off" />
+                    <button id="searchBtn" class="btn-search">
+                        <span class="btn-text">Найти и скачать</span>
+                        <span class="btn-loader" style="display:none"><span class="loader"></span></span>
                     </button>
                 </div>
-                <div id="filesList" class="files-list">
-                    <div class="loading-placeholder">Загрузка списка файлов...</div>
+                
+                <div class="settings-bar">
+                    <div class="setting-item">
+                        <label>Offset</label>
+                        <input type="number" id="startFrom" class="input-micro" value="0" />
+                    </div>
+                    <div class="setting-divider"></div>
+                    <div class="setting-item">
+                        <label>Limit</label>
+                        <input type="number" id="itemsPerPage" class="input-micro" value="5" />
+                    </div>
+                </div>
+            </div>
+
+            <div id="statusMessage" class="status-pill" style="display:none"></div>
+        </aside>
+
+        <main class="content-area">
+            <header class="content-header">
+                <h2>Библиотека файлов</h2>
+                <div class="actions-toolbar">
+                    <button id="refreshBtn" class="btn-tool" title="Обновить список">🔄 Обновить</button>
+                    <button id="clearBtn" class="btn-tool btn-tool-danger" title="Удалить все">🗑️ Очистить</button>
+                </div>
+            </header>
+
+            <div id="filesList" class="files-grid-container">
+                <div class="empty-placeholder">
+                    <div class="placeholder-img">📂</div>
+                    <p>Загрузка библиотеки...</p>
                 </div>
             </div>
         </main>
     </div>
 
+    <div id="analysisModal" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <div>
+                    <span class="modal-badge">READER</span>
+                    <h3 id="modalTitle">Название статьи</h3>
+                </div>
+                <button id="closeModalBtn" class="btn-close">×</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="analysis-grid">
+                    <div class="col-panel">
+                        <div class="col-header">📄 Текст статьи</div>
+                        <div class="col-content" id="textArticle"></div>
+                    </div>
+                    <div class="col-panel">
+                        <div class="col-header">📌 Аннотация</div>
+                        <div class="col-content" id="textAnnotation"></div>
+                    </div>
+                    <div class="col-panel">
+                        <div class="col-header">🤖 Краткий пересказ</div>
+                        <div class="col-content" id="textSummary"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/scripts/main.js"></script>
 </body>
 </html>
-

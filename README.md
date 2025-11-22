@@ -77,9 +77,13 @@ python -m venv .venv
 ```bash
 .venv\Scripts\activate
 ```
-5) Установите зависимости 
+5) Установите зависимости (Если у вас pip)
 ```bash
 pip install -r requirements.txt
+```
+Установка зависимостей (если у вас uv)
+```bash
+uv sync
 ```
 6) Запустите приложение
 ```bash

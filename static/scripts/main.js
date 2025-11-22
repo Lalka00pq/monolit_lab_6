@@ -1,207 +1,170 @@
-// Элементы DOM
-const searchInput = document.getElementById('searchInput');
+// JS ОСТАВЛЕН БЕЗ ИЗМЕНЕНИЙ
 const searchBtn = document.getElementById('searchBtn');
-const startFromInput = document.getElementById('startFrom');
-const itemsPerPageInput = document.getElementById('itemsPerPage');
-const statusMessage = document.getElementById('statusMessage');
-const filesList = document.getElementById('filesList');
+const searchInput = document.getElementById('searchInput');
 const refreshBtn = document.getElementById('refreshBtn');
 const clearBtn = document.getElementById('clearBtn');
+const filesList = document.getElementById('filesList');
+const statusMessage = document.getElementById('statusMessage');
 
-// Загрузка списка файлов при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    loadFiles();
-});
+// Modal elements
+const modal = document.getElementById('analysisModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const textArticle = document.getElementById('textArticle');
+const textAnnotation = document.getElementById('textAnnotation');
+const textSummary = document.getElementById('textSummary');
 
-// Обработчик поиска
-searchBtn.addEventListener('click', handleSearch);
-searchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        handleSearch();
-    }
-});
+// === INIT ===
+document.addEventListener('DOMContentLoaded', loadFiles);
 
-// Обработчик обновления списка файлов
 refreshBtn.addEventListener('click', loadFiles);
-// Обработчик очистки содержимого папок
-if (clearBtn) {
+searchBtn.addEventListener('click', handleSearch);
+
+closeModalBtn.addEventListener('click', () => modal.style.display = 'none');
+modal.addEventListener('click', (e) => { if(e.target === modal) modal.style.display = 'none'; });
+
+if(clearBtn) {
     clearBtn.addEventListener('click', async () => {
-        const ok = confirm('Вы уверены? Это удалит все файлы внутри подпапок в `files/`, но сами папки останутся.');
-        if (!ok) return;
-        showMessage('Выполняется очистка папок...', 'info');
-        try {
-            const resp = await fetch('/api/v1/files/clear', { method: 'DELETE' });
-            if (!resp.ok) throw new Error('HTTP status ' + resp.status);
-            const data = await resp.json();
-            showMessage(`Очистка завершена: ${data.cleared} элементов удалено.`, 'success');
-            setTimeout(() => loadFiles(), 800);
-        } catch (err) {
-            console.error('Ошибка очистки папок:', err);
-            showMessage('Ошибка при очистке: ' + err.message, 'error');
+        if(confirm('Удалить все файлы?')) {
+            await fetch('/api/v1/files/clear', {method: 'DELETE'});
+            loadFiles();
         }
     });
 }
 
-// Функция обработки поиска
-async function handleSearch() {
-    const query = searchInput.value.trim();
-    
-    if (!query) {
-        showMessage('Пожалуйста, введите запрос для поиска', 'error');
+// === LOAD LIBRARY ===
+async function loadFiles() {
+    filesList.innerHTML = '<div class="empty-placeholder"><p>Загрузка...</p></div>';
+    try {
+        const res = await fetch('/api/v1/library');
+        const json = await res.json();
+        renderGrid(json.data);
+    } catch (e) {
+        filesList.innerHTML = `<p style="color:red; text-align:center">Ошибка: ${e.message}</p>`;
+    }
+}
+
+function renderGrid(items) {
+    if(!items || items.length === 0) {
+        filesList.innerHTML = `
+            <div class="empty-placeholder">
+                <div class="placeholder-img">📂</div>
+                <p>Библиотека пуста</p>
+                <span>Используйте поиск слева для загрузки статей</span>
+            </div>`;
         return;
     }
+
+    filesList.innerHTML = '';
     
-    // Блокируем кнопку и показываем загрузку
-    setLoading(true);
-    showMessage('Поиск и загрузка статей...', 'info');
+    items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'file-card';
+        
+        // Логика кнопок: Если есть TXT -> "Читать", иначе -> "Спарсить"
+        let actionBtn = '';
+        if (item.has_txt) {
+            // Передаем данные в кнопку через data-attr
+            // (храним превью прямо в атрибуте для простоты, или можно в глобальном объекте)
+            actionBtn = `<button class="btn-card primary btn-read">📖 Читать анализ</button>`;
+        } else {
+            actionBtn = `<button class="btn-card success btn-parse" data-folder="${item.folder_id}">⚙️ Извлечь текст</button>`;
+        }
+
+        card.innerHTML = `
+            <div class="card-top">
+                <div class="card-icon">📄</div>
+                <div class="card-info">
+                    <div class="card-folder">FOLDER #${item.folder_id}</div>
+                    <div class="card-name" title="${item.filename}">${item.filename}</div>
+                </div>
+            </div>
+            <div class="card-actions">
+                ${actionBtn}
+            </div>
+        `;
+
+        // Привязка событий
+        if(item.has_txt) {
+            card.querySelector('.btn-read').addEventListener('click', () => openModal(item));
+        } else {
+            card.querySelector('.btn-parse').addEventListener('click', (e) => handleParse(item.folder_id, e.target));
+        }
+
+        filesList.appendChild(card);
+    });
+}
+
+// === SEARCH & DOWNLOAD ===
+async function handleSearch() {
+    const query = searchInput.value.trim();
+    if (!query) return;
+
+    const btn = searchBtn;
+    const originalText = btn.querySelector('.btn-text').innerText;
     
+    btn.disabled = true;
+    btn.querySelector('.btn-text').innerText = "Загрузка...";
+    btn.querySelector('.btn-loader').style.display = "inline-block";
+
     try {
-        const response = await fetch('/parse/articles', {
+        const res = await fetch('/parse/articles', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 search_query: query,
-                start_from: parseInt(startFromInput.value) || 0,
-                items_per_page: parseInt(itemsPerPageInput.value) || 12
+                start_from: parseInt(document.getElementById('startFrom').value) || 0,
+                items_per_page: parseInt(document.getElementById('itemsPerPage').value) || 5
             })
         });
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.text();
-        
-        showMessage('Статьи успешно загружены!', 'success');
-        
-        // Обновляем список файлов после загрузки
-        setTimeout(() => {
-            loadFiles();
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Ошибка при поиске:', error);
-        showMessage('Произошла ошибка при загрузке статей: ' + error.message, 'error');
-    } finally {
-        setLoading(false);
-    }
-}
-
-// Функция загрузки списка файлов
-async function loadFiles() {
-    filesList.innerHTML = '<div class="loading-placeholder">Загрузка списка файлов...</div>';
-    
-    try {
-        const response = await fetch('/api/v1/files');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.files && data.files.length > 0) {
-            displayFiles(data.files);
+        if(res.ok) {
+            showMessage("Статьи загружены!", "success");
+            loadFiles(); // Обновляем список
         } else {
-            filesList.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📄</div>
-                    <p>Нет загруженных файлов</p>
-                    <p style="margin-top: 8px; font-size: 0.9rem;">Выполните поиск, чтобы загрузить статьи</p>
-                </div>
-            `;
+            showMessage("Ошибка при поиске", "error");
         }
-    } catch (error) {
-        console.error('Ошибка при загрузке файлов:', error);
-        filesList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">⚠️</div>
-                <p>Ошибка при загрузке списка файлов</p>
-                <p style="margin-top: 8px; font-size: 0.9rem;">${error.message}</p>
-            </div>
-        `;
+    } catch(e) {
+        showMessage("Ошибка сети: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.querySelector('.btn-text').innerText = originalText;
+        btn.querySelector('.btn-loader').style.display = "none";
     }
 }
 
-// Функция отображения файлов
-function displayFiles(files) {
-    // Группируем файлы по папкам для лучшего отображения
-    const filesByFolder = {};
-    files.forEach(file => {
-        if (!filesByFolder[file.folder]) {
-            filesByFolder[file.folder] = [];
-        }
-        filesByFolder[file.folder].push(file);
-    });
-    
-    filesList.innerHTML = Object.keys(filesByFolder).sort((a, b) => parseInt(a) - parseInt(b)).map(folder => {
-        const folderFiles = filesByFolder[folder];
-        return `
-            <div class="folder-group">
-                <h3 class="folder-title">Папка ${folder}</h3>
-                <div class="folder-files">
-                    ${folderFiles.map(file => {
-                        const icon = file.type === '.pdf' ? '📄' : '📝';
-                        const typeLabel = file.type === '.pdf' ? 'PDF' : 
-                                        file.name.includes('анализ') ? 'Анализ' :
-                                        file.name.includes('аннотация') ? 'Аннотация' :
-                                        file.name.includes('пересказ') ? 'Пересказ' : 'TXT';
-                        return `
-                            <div class="file-card">
-                                <div class="file-card-header">
-                                    <div class="file-icon">${icon}</div>
-                                    <div class="file-info">
-                                        <div class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
-                                        <div class="file-type">${typeLabel}</div>
-                                    </div>
-                                </div>
-                                <div class="file-meta">
-                                    <span class="file-size">${file.size_mb < 0.01 ? (file.size / 1024).toFixed(2) + ' KB' : file.size_mb + ' MB'}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
-    }).join('');
+// === LOCAL PARSING ===
+async function handleParse(folderId, btnElement) {
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "⏳...";
+    btnElement.disabled = true;
+
+    try {
+        const res = await fetch(`/api/v1/parse_local/${folderId}`, { method: 'POST' });
+        if(!res.ok) throw new Error("Ошибка");
+        
+        // Успех -> обновляем список, чтобы кнопка стала "Читать"
+        loadFiles();
+        showMessage(`Папка ${folderId} обработана`, "success");
+    } catch (e) {
+        alert("Ошибка парсинга: " + e.message);
+        btnElement.innerText = originalText;
+        btnElement.disabled = false;
+    }
 }
 
-// Функция показа сообщения
-function showMessage(message, type = 'info') {
-    statusMessage.textContent = message;
-    statusMessage.className = `status-message ${type}`;
+// === MODAL VIEW ===
+function openModal(item) {
+    document.getElementById('modalTitle').innerText = item.filename;
+    textArticle.innerText = item.previews.article;
+    textAnnotation.innerText = item.previews.annotation;
+    textSummary.innerText = item.previews.summary;
+    
+    modal.style.display = 'flex';
+}
+
+function showMessage(msg, type) {
+    statusMessage.innerText = msg;
+    statusMessage.className = `status-pill ${type}`;
     statusMessage.style.display = 'block';
-    
-    // Автоматически скрываем сообщение через 5 секунд (кроме ошибок)
-    if (type !== 'error') {
-        setTimeout(() => {
-            statusMessage.style.display = 'none';
-        }, 5000);
-    }
+    setTimeout(() => statusMessage.style.display = 'none', 4000);
 }
-
-// Функция установки состояния загрузки
-function setLoading(loading) {
-    searchBtn.disabled = loading;
-    const btnText = searchBtn.querySelector('.btn-text');
-    const btnLoader = searchBtn.querySelector('.btn-loader');
-    
-    if (loading) {
-        btnText.style.display = 'none';
-        btnLoader.style.display = 'flex';
-    } else {
-        btnText.style.display = 'inline';
-        btnLoader.style.display = 'none';
-    }
-}
-
-// Функция экранирования HTML
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-

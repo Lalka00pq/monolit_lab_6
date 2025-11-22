@@ -1,97 +1,146 @@
-# project
-from modules.parser import download_data, search_cyberleninka
-from schemas.schemas import SearchRequest
-# 3rd party
+import shutil
+import pdfplumber
+from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
-import shutil
+# Импортируем твои модули (убедись, что они существуют)
+from schemas.schemas import SearchRequest 
+from modules.parser import download_data, search_cyberleninka
 
-app = FastAPI(
-    title="CyberLeninka Parser API",
-    description="API для парсинга и скачивания статей с CyberLeninka.ru",
-    version="1.0.0"
-)
+app = FastAPI(title="CyberLeninka Parser Pro")
 
-# Подключение статических файлов и шаблонов
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="static/templates")
 
+FILES_DIR = Path("./files")
 
-@app.get("/", response_class=HTMLResponse, summary="Главная страница с UI")
+@app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """Главная страница с интерфейсом для поиска статей."""
     return templates.TemplateResponse("index.html", {"request": request})
 
+# === 1. ПОЛУЧЕНИЕ СПИСКА ПАПОК (БИБЛИОТЕКИ) ===
+@app.get("/api/v1/library")
+async def get_library():
+    """Сканирует папки 1, 2, 3... и проверяет статус (PDF + TXT)"""
+    if not FILES_DIR.exists():
+        return {"data": []}
 
-@app.get("/api/v1/files", summary="Получить список загруженных файлов")
-async def get_files():
-    """Возвращает информацию о всех загруженных файлах."""
-    files_dir = Path("./files")
-    files_info = []
+    # Сортируем папки как числа
+    folders = sorted(
+        [d for d in FILES_DIR.iterdir() if d.is_dir() and d.name.isdigit()],
+        key=lambda x: int(x.name)
+    )
 
-    if files_dir.exists():
-        for folder in sorted(files_dir.iterdir(), key=lambda x: int(x.name) if x.name.isdigit() else 0):
-            if folder.is_dir():
-                for file in folder.iterdir():
-                    if file.is_file():
-                        # Включаем PDF и текстовые файлы
-                        if file.suffix in ['.pdf', '.txt']:
-                            files_info.append({
-                                "folder": folder.name,
-                                "name": file.name,
-                                "path": str(file.relative_to(files_dir)),
-                                "size": file.stat().st_size,
-                                "size_mb": round(file.stat().st_size / (1024 * 1024), 2),
-                                "type": file.suffix
-                            })
+    library_data = []
+    for folder in folders:
+        pdf_files = list(folder.glob("*.pdf"))
+        if not pdf_files:
+            continue
+        
+        pdf_file = pdf_files[0]
+        base_name = pdf_file.stem
+        
+        # Проверка наличия TXT файлов
+        path_article = folder / f"{base_name}_article.txt"
+        path_annotation = folder / f"{base_name}_annotation.txt"
+        path_summary = folder / f"{base_name}_summary.txt"
+        
+        has_txt = path_article.exists() and path_annotation.exists() and path_summary.exists()
 
-    return {"files": files_info, "total": len(files_info)}
+        # Читаем превью, если файлы есть
+        previews = {}
+        if has_txt:
+            previews = {
+                "article": read_head(path_article, 3000),
+                "annotation": read_head(path_annotation, 1000),
+                "summary": read_head(path_summary, 1500)
+            }
 
+        library_data.append({
+            "folder_id": folder.name,
+            "filename": pdf_file.name,
+            "size_mb": round(pdf_file.stat().st_size / (1024 * 1024), 2),
+            "has_txt": has_txt,
+            "previews": previews
+        })
 
-@app.delete("/api/v1/files/clear", summary="Очистить содержимое подпапок в ./files (не удалять сами папки)")
-async def clear_files():
-    """Удаляет все файлы и вложенные директории внутри каждой подпапки в `./files`, но не удаляет сами подпапки."""
-    files_dir = Path("./files")
-    removed_items = 0
+    return {"data": library_data}
 
-    if not files_dir.exists():
-        return {"cleared": 0, "message": "Папка ./files не найдена"}
+# === 2. ГЕНЕРАЦИЯ TXT (ПАРСИНГ PDF) ===
+@app.post("/api/v1/parse_local/{folder_id}")
+async def parse_local_pdf(folder_id: str):
+    folder_path = FILES_DIR / folder_id
+    if not folder_path.exists():
+        raise HTTPException(404, "Папка не найдена")
 
-    for folder in files_dir.iterdir():
-        if folder.is_dir():
-            # Удаляем все содержимое внутри папки, но не саму папку
-            for item in folder.iterdir():
-                try:
-                    if item.is_file() or item.is_symlink():
-                        item.unlink()
-                        removed_items += 1
-                    elif item.is_dir():
-                        # Удаляем рекурсивно вложенную директорию
-                        shutil.rmtree(item)
-                        removed_items += 1
-                except Exception:
-                    # Игнорируем отдельные ошибки удаления, продолжаем
-                    continue
+    pdf_files = list(folder_path.glob("*.pdf"))
+    if not pdf_files:
+        raise HTTPException(404, "PDF не найден")
+    
+    pdf_file = pdf_files[0]
+    base_name = pdf_file.stem
+    
+    # Извлекаем текст
+    full_text = ""
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text: full_text += text + "\n"
+    except Exception as e:
+        raise HTTPException(500, f"Ошибка PDF: {e}")
 
-    return {"cleared": removed_items, "message": "Содержимое подпапок очищено (папки сохранены)."}
+    if not full_text:
+        raise HTTPException(400, "Не удалось извлечь текст (возможно скан)")
 
+    # --- Эвристика разделения ---
+    import re
+    # Ищем аннотацию
+    anno_match = re.search(r'(Аннотация|Abstract|Annotation)[:\.]?\s*(.*?)(Ключевые слова|Keywords|Введение|Introduction)', full_text, re.DOTALL | re.IGNORECASE)
+    annotation_text = anno_match.group(2).strip() if anno_match else "Аннотация не найдена автоматически."
+    
+    # Делаем псевдо-пересказ (каждое 15-е предложение)
+    sentences = full_text.replace('\n', ' ').split('. ')
+    summary_text = ". ".join([s for i, s in enumerate(sentences) if i % 15 == 0])
 
-@app.get("/api/v1/health", summary="Проверка работоспособности")
-def health_check():
-    """Простой эндпоинт для проверки статуса сервера."""
-    return {"status": "ok", "message": "Парсер API готов к работе. Используйте /parse/articles."}
+    # Сохраняем
+    try:
+        (folder_path / f"{base_name}_article.txt").write_text(full_text, encoding="utf-8")
+        (folder_path / f"{base_name}_annotation.txt").write_text(annotation_text, encoding="utf-8")
+        (folder_path / f"{base_name}_summary.txt").write_text(summary_text, encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(500, f"Ошибка записи: {e}")
 
+    return {"status": "ok"}
 
+# === 3. ПОИСК И СКАЧИВАНИЕ (Твой старый функционал) ===
 @app.post("/parse/articles")
 async def parse_articles(info: SearchRequest):
-    data = search_cyberleninka(
-        info.search_query, info.start_from, info.items_per_page)
+    data = search_cyberleninka(info.search_query, info.start_from, info.items_per_page)
     result = download_data(data)
     return result
 
+@app.delete("/api/v1/files/clear")
+async def clear_files():
+    """Удаляет всё из папки files"""
+    removed = 0
+    if FILES_DIR.exists():
+        for item in FILES_DIR.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+                removed += 1
+            else:
+                item.unlink()
+                removed += 1
+    return {"cleared": removed}
+
+def read_head(path, limit):
+    try:
+        text = path.read_text(encoding="utf-8")
+        return text[:limit] + ("..." if len(text) > limit else "")
+    except: return "Ошибка чтения"
 
 if __name__ == "__main__":
     import uvicorn
